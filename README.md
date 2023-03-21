@@ -1,2 +1,2 @@
 # Rose
-A tookit for ROad uSEr Trajectory Modelling
+A cross-platform tookit for ROad uSEr Trajectory Modelling
