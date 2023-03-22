@@ -48,6 +48,9 @@ for(i in seq_len(nday)) {
   ywidth <- ifelse(i <= 7, 38.02, 42.27) 
   mppx <- w/(xwidth*2)
   mppy <- h/(ywidth*2)
+
+  # Street maps have an origin at the centre of the png.
+  # Computer screen uses the upper, left corner as the origin.
   tmp$Xmpp <- mppx*(tmp$X + xwidth)
   tmp$Ympp <- mppy*(tmp$Y + ywidth)
   
