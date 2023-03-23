@@ -1,7 +1,6 @@
-## Description: Freeze this file, considered it done. 
-## https://stackoverflow.com/questions/32184252/how-to-select-columns-in-data-table-using-a-character-vector-of-certain-column-n
+## Description: Convert csv raw data to 14 data frames
 isServer <- FALSE
-pkg <- c("Rose", "data.table", "dplyr", "lubridate")
+pkg <- c("Rose", "data.table", "dplyr", "lubridate", "png")
 sapply(pkg, require, character.only = TRUE)
 wpath <- ifelse(isServer, "~/Documents/viscando/", 
                 "/media/yslin/Avocet/Projects/viscando/"); wpath
@@ -9,16 +8,66 @@ wk <- ifelse(.Platform$OS.type == "windows", shortPathName("C:/"), wpath)
 setwd(wk)
 rm(list = ls())
 
-## Belle Isle Road------------------------------------------------------
-rawpath <- "tests/extdata/raw/"
-# ~617MB
-x0 <- extract_data(rawpath)
-# object.size(x0) / 1024/1024
-tibble::as_tibble(tail(x0))
-# x1 <- extract_data(qpath)
+run_a_day <- function(i, x0) {
+  require(png)
+  require(dplyr)
+  require(data.table)
 
-cols <- c("Type", "Estimated", "fid"); cols
+  per <- records()
+
+  msg0 <- ifelse(i <= 7, "Belle Road", "Queensway")
+  pngfile <- ifelse(i <= 7, "tests/figs/streets/ground - Belle_Isle.png", "tests/figs/queensway.png")
+  img <- png::readPNG(pngfile) 
+
+  h <- dim(img)[1] # image height
+  w <- dim(img)[2] # image width
+  metre_p_pixel_x <- w / (2*ifelse(i <= 7, 24.77, 47.65))
+  metre_p_pixel_y <- h / (2*ifelse(i <= 7, 38.02, 42.27))
+
+  ddayi <- x0 %>% dplyr::filter(Time > ymd_hm(per[i, 1]) & Time < ymd_hm(per[i, 2])) 
+  Distance <- sqrt(ddayi$X^2 + ddayi$Y^2)
+
+  ddayi$Xmpp <- metre_p_pixel_x*(ddayi$X + metre_p_pixel_x)
+  ddayi$Ympp <- metre_p_pixel_y*(ddayi$Y + metre_p_pixel_y)
+
+  ddayi$Speed_ms <- ddayi$Speed * (1000 / 3600)
+  ddayi$time_change <- c(NA, diff(ddayi$Time))
+  ddayi$speed_change <- c(NA, diff(ddayi$Speed_ms))
+  ddayi$distance_change <- c(NA, diff(ddayi$Distance))
+  ddayi$acceleration <- ddayi$speed_change / ddayi$time_change
+
+  cat(msg0, "from", as.character(ymd_hm(per[i, 1])), "to", as.character(ymd_hm(per[i, 2])), "\n")  
+  selected_columns <- c("ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed_ms", "A", "time_change", "speed_change", 
+  "distance_change", "acceleration")
+  daday <- ddayi[, ..selected_columns]
+
+  names(daday) <- c("ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed", "Agent", "time_change", "speed_change",
+  "distance_change", "acceleration")
+
+  fn <- paste0("tests/extdata/day", i, "/daday.rda")
+  save(daday, file = fn)
+  tools::resaveRdaFiles(fn, compress = "xz", compression_level = 9)
+  return(NULL)
+}
+
+is_parallel <- TRUE
+
+# Extract and accumulate  all trajectory data in one object called x0 -----
+rawpath <- "tests/extdata/raw/"
+x0 <- extract_data(rawpath) 
+
+# Divide the object size by the square of 1024 to get the size in MB, which is about 617MB
+# object.size(x0) / (1024^2)
+
+# Check the four road user types, whether a sample is estimated or empirical, and whether 
+# fild IDs match up. 
+cols <- c("Type", "Estimated", "fid") 
 sapply(x0[, ..cols], table)
+
+# Examine how many road users are in each file. Each file stores one-day worth of data.
+# Note that sometimes the camera and CNN algorithm intepreted two road users as one, 
+# when they walked in pair. We can see this by sampling a number of vide
+# files and counting the number of road users.
 table(x0$Type, x0$fid)
 #         1       2       3       4       5       6       7       8
 # 0    4435  142556  140787  132728  133399  120089   75899    1592
@@ -31,35 +80,20 @@ table(x0$Type, x0$fid)
 # 1   38032   55318   44250   49197   46704   29123   25183
 # 2  310260  371776  382412  442850  387210  262787  214529
 # 3   33919   35672   38361   40660   31398   16381   25789
-per <- records()
-nday <- nrow(per)
-cols <- c("ID", "Time", "X", "Y", "Speed", "A", "Xmpp", "Ympp")
-for(i in seq_len(nday)) {
-  tmp <- x0 %>% filter(Time > ymd_hm(per[i, 1]) & Time < ymd_hm(per[i, 2])) 
-  msg0 <- ifelse(i <= 7, "Belle Road", "QW")
-  pngfile <- ifelse(i <= 7, "tests/figs/belle.png", "tests/figs/queensway.png")
-  img <- png::readPNG(pngfile) 
 
-  # 594 = 49.54 m
-  # 11.99031 pixel = 1 m
-  h <- dim(img)[1] # image height
-  w <- dim(img)[2] # image width
-  xwidth <- ifelse(i <= 7, 24.77, 47.65)
-  ywidth <- ifelse(i <= 7, 38.02, 42.27) 
-  mppx <- w/(xwidth*2)
-  mppy <- h/(ywidth*2)
 
-  # Street maps have an origin at the centre of the png.
-  # Computer screen uses the upper, left corner as the origin.
-  tmp$Xmpp <- mppx*(tmp$X + xwidth)
-  tmp$Ympp <- mppy*(tmp$Y + ywidth)
-  
-  cat(msg0, "from", as.character(ymd_hm(per[i, 1])), "to", as.character(ymd_hm(per[i, 2])), "\n")  
+# Extract all trajectory data in a day ----- 
+# I store a function, named, per, in the package R folder, which has the dates and times 
+# that we recorded the videos.
+nday <- nrow(records())
+idx <- vector("list", length = nday)
+for(j in 1:nday) { idx[[j]] <- j }
 
-  daday <- tmp[, ..cols]
-  
-  fn <- paste0("tests/extdata/day", i, "/daday.rda")
-  save(daday, file = fn)
-  tools::resaveRdaFiles(fn, compress = "xz", compression_level = 9)
-  
+if (is_parallel) {
+  ncore <- nday
+  res <- parallel::mclapply(idx, run_a_day, x0, 
+                            mc.cores = getOption("mc.cores", ncore))
+
+} else {
+  res <- lapply(idx, run_a_day, x0)
 }
