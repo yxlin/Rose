@@ -3,7 +3,7 @@ A cross-platform tookit for ROad uSEr Trajectory Modelling
 
 ## Licence
 
-Copyright (c) 2021-2022 Yi-Shin Lin (yishinlin@pm.me)
+Copyright (c) 2021-2023 Yi-Shin Lin (yishinlin@pm.me)
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
