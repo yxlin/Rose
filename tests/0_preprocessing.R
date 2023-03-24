@@ -1,10 +1,14 @@
-## Description: Convert csv raw data to 14 data frames
-isServer <- FALSE
+# Description: Convert csv raw data to 14 data frames
+is_server <- FALSE
 pkg <- c("Rose", "data.table", "dplyr", "lubridate", "png")
 sapply(pkg, require, character.only = TRUE)
-wpath <- ifelse(isServer, "~/Documents/viscando/", 
-                "/media/yslin/Avocet/Projects/viscando/"); wpath
-wk <- ifelse(.Platform$OS.type == "windows", shortPathName("C:/"), wpath)
+wpath <- ifelse(is_server, "~/Documents/viscando/",
+  "/media/yslin/Avocet/Projects/viscando/"
+)
+
+wk <- ifelse(.Platform$OS.type == "windows",
+  shortPathName("F:/Projects/Rose/"), wpath
+)
 setwd(wk)
 rm(list = ls())
 
@@ -13,22 +17,25 @@ run_a_day <- function(i, x0) {
   require(dplyr)
   require(data.table)
 
-  per <- records()
+  per <- Rose::records()
 
   msg0 <- ifelse(i <= 7, "Belle Road", "Queensway")
-  pngfile <- ifelse(i <= 7, "tests/figs/streets/ground - Belle_Isle.png", "tests/figs/queensway.png")
-  img <- png::readPNG(pngfile) 
+  pngfile <- ifelse(i <= 7, "tests/figs/streets/Belle_Isle_Road.png",
+    "tests/figs/streets/Queensway.png"
+  )
+  img <- png::readPNG(pngfile)
 
-  h <- dim(img)[1] # image height
-  w <- dim(img)[2] # image width
-  metre_p_pixel_x <- w / (2*ifelse(i <= 7, 24.77, 47.65))
-  metre_p_pixel_y <- h / (2*ifelse(i <= 7, 38.02, 42.27))
+  # image height and width
+  h <- dim(img)[1]
+  w <- dim(img)[2]
+  metre_p_pixel_x <- w / (2 * ifelse(i <= 7, 24.77, 47.65))
+  metre_p_pixel_y <- h / (2 * ifelse(i <= 7, 38.02, 42.27))
 
-  ddayi <- x0 %>% dplyr::filter(Time > ymd_hm(per[i, 1]) & Time < ymd_hm(per[i, 2])) 
-  Distance <- sqrt(ddayi$X^2 + ddayi$Y^2)
+  ddayi <- x0 %>% dplyr::filter(Time > ymd_hm(per[i, 1]) &
+    Time < ymd_hm(per[i, 2]))
 
-  ddayi$Xmpp <- metre_p_pixel_x*(ddayi$X + metre_p_pixel_x)
-  ddayi$Ympp <- metre_p_pixel_y*(ddayi$Y + metre_p_pixel_y)
+  ddayi$Xmpp <- metre_p_pixel_x * (ddayi$X + metre_p_pixel_x)
+  ddayi$Ympp <- metre_p_pixel_y * (ddayi$Y + metre_p_pixel_y)
 
   ddayi$Speed_ms <- ddayi$Speed * (1000 / 3600)
   ddayi$time_change <- c(NA, diff(ddayi$Time))
@@ -36,13 +43,22 @@ run_a_day <- function(i, x0) {
   ddayi$distance_change <- c(NA, diff(ddayi$Distance))
   ddayi$acceleration <- ddayi$speed_change / ddayi$time_change
 
-  cat(msg0, "from", as.character(ymd_hm(per[i, 1])), "to", as.character(ymd_hm(per[i, 2])), "\n")  
-  selected_columns <- c("ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed_ms", "A", "time_change", "speed_change", 
-  "distance_change", "acceleration")
+  cat(
+    msg0, "from", as.character(ymd_hm(per[i, 1])), "to",
+    as.character(ymd_hm(per[i, 2])), "\n"
+  )
+
+  selected_columns <- c(
+    "ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed_ms", "A", "time_change",
+    "speed_change", "distance_change", "acceleration"
+  )
+
   daday <- ddayi[, ..selected_columns]
 
-  names(daday) <- c("ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed", "Agent", "time_change", "speed_change",
-  "distance_change", "acceleration")
+  names(daday) <- c(
+    "ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed", "Agent", "time_change",
+    "speed_change", "distance_change", "acceleration"
+  )
 
   fn <- paste0("tests/extdata/day", i, "/daday.rda")
   save(daday, file = fn)
@@ -52,29 +68,41 @@ run_a_day <- function(i, x0) {
 
 is_parallel <- TRUE
 
-# Extract and accumulate  all trajectory data in one object called x0 -----
+# Section 1 -----
+# Accumulate individual csv's in data frame called x0
 rawpath <- "tests/extdata/raw/"
-x0 <- extract_data(rawpath) 
 
-# Divide the object size by the square of 1024 to get the size in MB, which is about 617MB
-# object.size(x0) / (1024^2)
+# extract_data is a function in the package R folder
+x0 <- extract_data(rawpath)
 
-# Check the four road user types, whether a sample is estimated or empirical, and whether 
-# fild IDs match up. 
-cols <- c("Type", "Estimated", "fid") 
+# Show the size of the big data frame in MB,
+# Its size should be about 617MB
+object.size(x0) / (1024^2)
+
+# Check
+# 1. the number of the four types of road user,
+# 2. whether a sample is estimated or empirical, and
+# 3. whether file IDs are correct.
+cols <- c("Type", "Estimated", "fid")
 sapply(x0[, ..cols], table)
 
-# Examine how many road users are in each file. Each file stores one-day worth of data.
-# Note that sometimes the camera and CNN algorithm intepreted two road users as one, 
-# when they walked in pair. We can see this by sampling a number of vide
-# files and counting the number of road users.
+# Examine how many road users are in each file. Each file stores
+# one-day worth of data.
+#
+# Note that sometimes the camera and the CNN algorithm intepreted two
+# road users as one, when they walked in pair, as observed in
+# video files.
+#
+# Although there are 15 csv files, we use the recorded time reported
+# by Viscando, which only have 14-day trajectory data.
+# Use the function, record(), to see the recorded time.
 table(x0$Type, x0$fid)
 #         1       2       3       4       5       6       7       8
 # 0    4435  142556  140787  132728  133399  120089   75899    1592
 # 1    2436   35867   34182   34338   33091   26350   16865     222
 # 2   44863 1044432 1128341 1063156 1123429  919983  613123    3987
 # 3    2532   74205   83698   75611   83675   41728   19903     813
-# 
+#
 #         9      10      11      12      13      14      15
 # 0  164643  179332  186407  174090  199000  119537   96366
 # 1   38032   55318   44250   49197   46704   29123   25183
@@ -82,18 +110,20 @@ table(x0$Type, x0$fid)
 # 3   33919   35672   38361   40660   31398   16381   25789
 
 
-# Extract all trajectory data in a day ----- 
-# I store a function, named, per, in the package R folder, which has the dates and times 
-# that we recorded the videos.
+# Section 2 -----
+# Separate all trajectory data, stored in x0, into individual one-day data
+# and save to a file.
 nday <- nrow(records())
 idx <- vector("list", length = nday)
-for(j in 1:nday) { idx[[j]] <- j }
+for (j in 1:nday) {
+  idx[[j]] <- j
+}
 
 if (is_parallel) {
   ncore <- nday
-  res <- parallel::mclapply(idx, run_a_day, x0, 
-                            mc.cores = getOption("mc.cores", ncore))
-
+  res <- parallel::mclapply(idx, run_a_day, x0,
+    mc.cores = getOption("mc.cores", ncore)
+  )
 } else {
   res <- lapply(idx, run_a_day, x0)
 }

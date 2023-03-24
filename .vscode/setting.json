@@ -1,0 +1,31 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "CMD (venv)": {
+            "path": "C:\\WINDOWS\\System32\\cmd.exe",
+            "args": [
+                "/K",
+                "python",
+                "-m",
+                "pipenv",
+                "shell"
+            ],
+            "overrideName": true,
+            "icon": "terminal-cmd"
+        }
+    },
+    "terminal.integrated.cwd": "${workspaceFolder}",
+    "terminal.integrated.defaultProfile.windows": "CMD (venv)",
+    "debug.terminal.clearBeforeReusing": true,
+    "files.exclude": {
+        "**/*.c": true,
+        "**/*.pyd": true
+    },
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true
+    },
+    "python.formatting.provider": "none",
+    "black-formatter.args": [
+        "--line-length=100"
+    ]
+}
