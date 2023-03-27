@@ -1,6 +1,10 @@
 # Rose
 A cross-platform tookit for ROad uSEr Trajectory Modelling
 
+The toolkit automates the processing of the (possibly) RNN converted traffic trajectories to capture a pair of individual interactions. The objective is to provide a unified interface for the user to advance from not just able to extract the interactions (done by RNN and many other macheine learning method) but also acquire insights from individual interactions.
+
+We hope the result will foster a new way ML method, a better understanding of the traffic dynamics and help to improve the traffic safety.
+
 ## Licence
 
 Copyright (c) 2021-2023 Yi-Shin Lin (yishinlin@pm.me)
