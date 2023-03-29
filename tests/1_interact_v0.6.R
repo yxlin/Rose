@@ -44,34 +44,8 @@ adj <- 2.5
 idx <- vector("list", length = nday)
 for(l in 1:nday) { idx[[l]] <- l }
 
-# i <- 2; j <- 288; k <- 4
-# i <- 3; j <- 91; k <- 3
-# i <- 3; j <- 419; k <- 6
-# i <- 5; j <- 817; k <- 2
-# i <- 5; j <- 1131; k <- 5
-# i <- 9; j <- 213; k <- 4
-i <- 9; j <- 913; k <- 3
 run_day <- function(i, x0, enc_dist, threshold_enc, watch_distance, exclude_last) 
 {
-  if(istest) { 
-    ## Veh stopped at the encounter, but the ped kept walking
-    # if (i == 11 & j == 394 & k == 3) { next; }  
-    i <- 2; j <- 59; k <- 6
-    i <- 2; j <- 302; k <- 4
-    i <- 2; j <- 589; k <- 6
-    i <- 2; j <- 1102; k <- 3
-    i <- 2; j <- 1102; k <- 4
-    i <- 5; j <- 1131; k <- 5
-    i <- 9; j <- 324; k <- 3
-    i <- 9; j <- 594; k <- 5
-    i <- 11; j <- 147; k <- 4
-    i <- 11; j <- 394; k <- 3
-    i <- 12; j <- 714; k <- 5
-    i <- 12; j <- 911; k <- 4
-    i <- 12; j <- 1487; k <- 4
-    cat(c(i, j, k), "\n")
-  }
-  
   start_adj <- ifelse(i <= 7, 2*adj, adj)  ## to guess where to put the TTA label 
   load(paste0("tests/extdata/day", i, "/daday_.rda"))
   site <- ifelse(i <= 7, "belle", "qw")
@@ -88,50 +62,61 @@ run_day <- function(i, x0, enc_dist, threshold_enc, watch_distance, exclude_last
   ped_idx    <- which(interact_tbl[, "Ped"]  > 0) 
   nroad_user <- nrow(interact_tbl)
 
-# counting the number of two agents having crossing path
+# counting many behavioural statistics 
   ninteract <- 0 
-  np_early <- nv_early <- 0
-  x1 <- pet <- ipEarly <- NULL
-  iTTAp <- iTTAv <- iSp <- iSv <- NULL
-  iXp <- iXv <- iYp <- iYv <- NULL
+  np_early <- 0
+  nv_early <- 0
+  x1 <- NULL 
+  pet <- NULL
+  ipEarly <- NULL
+  iTTAp <- NULL
+  iTTAv <- NULL
+  iSp <- NULL
+  iSv <- NULL
+  iXp <- NULL
+  iXv <- NULL
+  iYp <- NULL
+  iYv <- NULL
   is_slow_down <- NULL
-  zoneid <- is_marked <- NULL
+  zoneid <- NULL
+  is_marked <- NULL
   
   cat(length(ped_idx), "ped(s) in", msg0, "between", 
       as.character(ymd_hm(per[i, 1])), "to", as.character(ymd_hm(per[i, 2])), "\n")
 
   for (j in seq_len(length(ped_idx))) {
-    # 1. Identify the 1st, 2nd, ... instance of non-zero ped count; ie the sensor
-    # reported that it saw a pedestrian.
+# 1. Identify the 1st, 2nd, ... instance of non-zero pedestrian count; 
     self <- ped_idx[j]  
     if ( !unique(daday[ID == names(self)]$A) == "Ped" ) stop ("Not a pedestrian?")
     
-    # 2. From the ped's perspective, looked forward and backward in time for 
-    # rng (3) other road users 
+# 2. From a pedestrian's perspective, looked forward and backward in time for 
+# rng (3) other road users 
     startrow <- ifelse((self - rng) < 1, 1, self - rng)
     endrow   <- ifelse((self + rng) >= nroad_user, nroad_user, self + rng)
     all <- startrow:endrow;    
     others <- all[all != self] # all other road users 
     
-    # Get their Viscando assigned ID
+# Extract the sensor assigned ID
     selID <- dimnames(interact_tbl)[[1]][self]
     othID <- dimnames(interact_tbl)[[1]][others]
     allID <- dimnames(interact_tbl)[[1]][all]
 
-    # Separate their data & drop redundant factor levels associated with the A column
+# Separate the data of each road user and drop redundant factor levels associated with the A column
     dped <- daday[ID %in% selID] 
-    doth <- daday[ID %in% othID & A != "Bic"] # excluding bicycles
+
+# We decided not to study bicycles. 
+    doth <- daday[ID %in% othID & A != "Bic"] 
     dped$A  <- droplevels(dped$A)
     doth$A  <- droplevels(doth$A)
     
-    # Check all other agents who might interact with the pedestrian
+# Check all other agents who might interact with the pedestrian
     for (k in seq_len(length(others))) {
       
       dveh <- doth[ID == othID[k]]
       nped <- nrow(dped); 
       nveh <- nrow(dveh); 
       
-      # We are not interested in the interaction between two pedestrians,
+# We are not interested in the interaction between two pedestrians,
       is_vehicle <- unique(dveh$A) %in% c("Hgv", "Lgv") 
       if(!is_vehicle || nveh == 0) { 
         next 
@@ -142,18 +127,15 @@ run_day <- function(i, x0, enc_dist, threshold_enc, watch_distance, exclude_last
       lab2 <- paste0(hour(dveh$Time[1]), ":", minute(dveh$Time[1]), ":", 
                      round(second(dveh$Time[1]), 2))
       
-      # Criterion 1 checks whether a pedestrian and a vehicle have a 
-      # linear crossing path by using their first and last recorded samples.
-      is_encounter <- check_encounter(dped, dveh); is_encounter
+# Criterion 1 checks whether a pedestrian and a vehicle have a 
+# linear crossing path by using their first and last recorded samples.
+      is_encounter <- check_encounter(dped, dveh); 
 
       if (is_encounter[[1]]) {
 
-        # Excluding the cases that the time stamps suggested no interaction. 
-        # 1. Vehicle entered the scene earlier
-        # test1 <- min(dveh$Time) < min(dped$Time); test1
-        # 2. Vehicle left the scene earlier than the pedestrian entered the scene
+# Excluding the cases that 
+# 2. either the vehicle or the pedestrian left the scene earlier than the other.
         test2 <- max(dveh$Time) < min(dped$Time); test2
-        # 3. Pedestrian left the scene earlier than the vehicle entered the scene
         test3 <- max(dped$Time) < min(dveh$Time); test3
         
         if (test3) {if(verbose) message("The P left the scene eariler. Abort."); next }
@@ -164,14 +146,11 @@ run_day <- function(i, x0, enc_dist, threshold_enc, watch_distance, exclude_last
           message("Predictive crossing point: ", tmp[1], " ", tmp[2])
         }
         
-        # Find the recorded encounter point
-        # args(find_encounter)
+# Find the recorded encounter point
         encounter_point <- find_encounter(dped, dveh) 
         encounter_xy <- encounter_point[[1]]
         encounter_distance <- encounter_point[[2]]
-        
         hotzone <- check_hotzone(dveh, encounter_xy, site = site); 
-        # hotzone
 
         dped$d2e <- sqrt( (dped$X - dped[xy[2], ]$X)^2 + (dped$Y - dped[xy[2], ]$Y)^2 )
         dveh$d2e <- sqrt( (dveh$X - dveh[xy[1], ]$X)^2 + (dveh$Y - dveh[xy[1], ]$Y)^2 )
