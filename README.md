@@ -5,7 +5,7 @@ The toolkit takes the trajectory output from an AI-enabled model and captures a 
 
 The result will foster a new way of ML modeling, a better understanding of traffic dynamics, and improve traffic safety.
 
-# Licence
+# License
 
 Copyright (c) 2021-2023 Yi-Shin Lin (yishinlin@pm.me)
 
