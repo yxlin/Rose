@@ -1,47 +1,43 @@
-# Description: Convert csv raw data to 14 data frames
-is_server <- FALSE
-pkg <- c("Rose", "data.table", "dplyr", "lubridate", "png")
-sapply(pkg, require, character.only = TRUE)
-wpath <- ifelse(is_server, "~/Documents/viscando/",
-  "/media/yslin/Avocet/Projects/viscando/"
-)
-
-wk <- ifelse(.Platform$OS.type == "windows",
-  shortPathName("F:/Projects/Rose/"), wpath
-)
-setwd(wk)
+## Description: Capture plausible short stopping observations
 rm(list = ls())
+pkg <- c("data.table", "ggplot2", "Rose", "png")
+sapply(pkg, require, character.only = TRUE)
+
+core_path <- "[01]Projects/viscando/"
+windows_path <- paste0("D:/", core_path)
+unix_path <- paste0("/media/yslin/Avocet/", core_path)
+wk <- ifelse(.Platform$OS.type == "windows", shortPathName(windows_path), 
+             unix_path)
+setwd(wk)
+
 
 run_a_day <- function(i, x0) {
   require(png)
   require(dplyr)
   require(data.table)
 
-  per <- Rose::records()
-
+  per <- records()
   msg0 <- ifelse(i <= 7, "Belle Road", "Queensway")
   pngfile <- ifelse(i <= 7, "tests/figs/streets/Belle_Isle_Road.png",
-    "tests/figs/streets/Queensway.png"
+    "tests/figs/street/Queensway.png"
   )
   img <- png::readPNG(pngfile)
 
-  # image height and width
-  h <- dim(img)[1]
-  w <- dim(img)[2]
+  h <- dim(img)[1] # image height
+  w <- dim(img)[2] # image width
   metre_p_pixel_x <- w / (2 * ifelse(i <= 7, 24.77, 47.65))
   metre_p_pixel_y <- h / (2 * ifelse(i <= 7, 38.02, 42.27))
 
-  ddayi <- x0 %>% dplyr::filter(Time > ymd_hm(per[i, 1]) &
-    Time < ymd_hm(per[i, 2]))
+  ddayi <- x0 %>% dplyr::filter(
+    Time > ymd_hm(per[i, 1]) &
+      Time < ymd_hm(per[i, 2])
+  )
 
   ddayi$Xmpp <- metre_p_pixel_x * (ddayi$X + metre_p_pixel_x)
   ddayi$Ympp <- metre_p_pixel_y * (ddayi$Y + metre_p_pixel_y)
-
   ddayi$Speed_ms <- ddayi$Speed * (1000 / 3600)
   ddayi$time_change <- c(NA, diff(ddayi$Time))
   ddayi$speed_change <- c(NA, diff(ddayi$Speed_ms))
-  ddayi$distance_change <- c(NA, diff(ddayi$Distance))
-  ddayi$acceleration <- ddayi$speed_change / ddayi$time_change
 
   cat(
     msg0, "from", as.character(ymd_hm(per[i, 1])), "to",
@@ -50,14 +46,14 @@ run_a_day <- function(i, x0) {
 
   selected_columns <- c(
     "ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed_ms", "A", "time_change",
-    "speed_change", "distance_change", "acceleration"
+    "speed_change"
   )
 
   daday <- ddayi[, ..selected_columns]
 
   names(daday) <- c(
-    "ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed", "Agent", "time_change",
-    "speed_change", "distance_change", "acceleration"
+    "ID", "Time", "X", "Y", "Xmpp", "Ympp", "Speed", "A", "time_change",
+    "speed_change"
   )
 
   fn <- paste0("tests/extdata/day", i, "/daday.rda")
@@ -127,3 +123,37 @@ if (is_parallel) {
 } else {
   res <- lapply(idx, run_a_day, x0)
 }
+
+# Section 3---------
+# Check Viscando's time jump speeds
+## Show that the manual calculated Speed has a positive correlation with 
+# i <- 5; j <- 1131; k <- 5
+# i <- 2; j <- 589; k <- 6
+# i <- 2; j <- 59; k <- 6
+i <- 11; j <- 147; k <- 4
+
+fndat <- paste0("tests/tmp_data/day", i, "/p", j, "-v", k, ".rda")
+load(fndat) 
+dveh$Speed_ms <- dveh$Speed * (1000 / 3600)
+
+
+tmp1 <- tim <- numeric(nrow(dveh)-1)
+for(m in 2:nrow(dveh)) {
+  dis <- sqrt( (dveh$X[m] - dveh$X[m-1])^2 + (dveh$Y[m] - dveh$Y[m-1])^2 )
+  tim[m-1] <- (as.numeric(dveh$Time[m]) - as.numeric(dveh$Time[m-1]))      
+  tmp1[m-1] <- dis/ (as.numeric(dveh$Time[m]) - as.numeric(dveh$Time[m-1]))      
+}
+plot(tim)
+which(tim> 0.162)
+dtmp[26,]
+
+tmp2 <- dveh$Speed_ms[2:nrow(dveh)]
+dtmp <- data.table(y = c(tmp1, tmp2), x = c(1:length(tmp1), 1:length(tmp2)),
+                   z = c(rep("Calculated", length(tmp1)), rep("Viscando", length(tmp2))))
+dtmp$z <- factor(dtmp$z)
+p0 <- ggplot(data = dtmp) +
+  geom_point(aes(x = x, y = y, colour = z)) +
+  geom_line(aes(x = x, y = y, group = z))
+p0
+
+
