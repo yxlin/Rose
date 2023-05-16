@@ -30,6 +30,7 @@ speed_threshold <- 0.1
 # when the car had a non-zero, positively increasing trend at its
 # speed
 message("Premature crossing: ")
+d2e_threshold_veh <- 10
 
 count_list <- list()
 for (l in seq_len(nday)) {
@@ -65,7 +66,7 @@ for (l in seq_len(nday)) {
 
     # 1. Select the data in the period of 20 to 4 metres before the encounter.
     # Calculate the proportion of deceleration
-    idx_vyield <- dveh$d2e <= 20 & dveh$d2e > d2e_threshold
+    idx_vyield <- dveh$d2e <= d2e_threshold_veh & dveh$d2e > d2e_threshold
     nyield <- length(idx_vyield)
     early_yield_percentage <- sum(dveh[idx_vyield, ]$speed_change < 0,
       na.rm = TRUE
@@ -384,11 +385,9 @@ for (l in 1:n) {
   fndat <- paste0("tests/interact_data/day", i, "/p", j, "-v", k, ".rda")
   Id <- paste0("d", l, "-p", j, "-v", k)
   load(fndat)
-  dveh[1:3, ]
 
   idx_ped <- min(which(dped$Speed_ms != 0))
   idx_veh <- min(which(dveh$Speed_ms != 0))
-
 
   speed_veh <- dveh[idx_veh, "Speed_ms"]$Speed_ms
   distance_veh <- dveh[idx_veh, "d2e"]$d2e

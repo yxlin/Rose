@@ -653,16 +653,16 @@ for (l in 1:n) {
   fndat <- paste0("tests/interact_data/day", i, "/p", j, "-v", k, ".rda")
   Id <- paste0("d", l, "-p", j, "-v", k)
   load(fndat)
-  distance_ped <- dped[1, "d2e"]$d2e
-  if (l == 4) {
-    speed_veh <- dveh[2, "Speed_ms"]$Speed_ms
-    distance_veh <- dveh[2, "d2e"]$d2e
-  } else {
-    speed_veh <- dveh[1, "Speed_ms"]$Speed_ms
-    distance_veh <- dveh[1, "d2e"]$d2e
-  }
+  
+  first_nonzero_v <- which.max(dveh$Speed_ms != 0)
+  first_nonzero_p <- which.max(dped$Speed_ms != 0)
+  
+  speed_veh <- dveh[first_nonzero_v, "Speed_ms"]$Speed_ms
+  distance_veh <- dveh[first_nonzero_v, "d2e"]$d2e
 
-  speed_ped <- dped[1, "Speed_ms"]$Speed_ms
+  speed_ped <- dped[first_nonzero_p, "Speed_ms"]$Speed_ms
+  distance_ped <- dveh[first_nonzero_p, "d2e"]$d2e
+
   dtmp <- data.frame(distance_ped, distance_veh, speed_ped, speed_veh, id = Id)
   dout <- rbind(dout, dtmp)
 }

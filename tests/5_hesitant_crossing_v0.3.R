@@ -18,7 +18,7 @@ nday <- nrow(per)
 
 # Define the threshold of the distance to the encounter point in metres.
 d2e_threshold <- 4
-
+d2e_threshold_v <- 10
 # Find those pedestrians who slowed down when the car was also slow down------
 # before stepping into the crosstalk
 message("Hesitant crossing: ")
@@ -40,6 +40,9 @@ for (l in seq_len(nday)) {
     i <- x1[m, 1]
     j <- x1[m, 2]
     k <- x1[m, 3]
+    # i <- 2
+    # j <- 156
+    # k <- 6
     fn <- paste0(path2data, "/day", i, "/p", j, "-v", k, ".rda")
     load(fn)
 
@@ -53,7 +56,7 @@ for (l in seq_len(nday)) {
     if (nrow(hotzone) == 0) next
 
     # Vehicle
-    idx_vthre <- which.max(dveh$d2e < d2e_threshold)
+    idx_vthre <- which.max(dveh$d2e < d2e_threshold_v)
 
     # Pedestrian
     idx_pthre <- which.max(dped$d2e < d2e_threshold)
@@ -77,11 +80,17 @@ for (l in seq_len(nday)) {
     lm0 <- lm(speeds ~ times)
     beta <- lm0$coefficients[2]
 
+    # 1. Has the veh slowed down?
+    speeds_v <- dveh[crit_pts2, ]$Speed_ms
+    times_v <- dveh[crit_pts2, ]$abstime
+    lm_v0 <- lm(speeds_v ~ times_v)
+    beta_v <- lm_v0$coefficients[2]
+
     # Finally, look for the interaction where the car does show yielding sign
     # The deceleration percentage is greater than 50% and the pedestrian passed
     # at least 3.8 s earlier than the car.
     if (deceleration_percentage >= 0.5) {
-      if (beta < 0) {
+      if (beta < 0 & beta_v < 0) {
         if (tta[[1]] == "Ped") {
           seconds <- abs(as.numeric(tta[[3]]))
           if ((nrow(hotzone) != 0) && (seconds >= 2)) {
@@ -113,18 +122,34 @@ d2e_threshold_veh <- 10
 
 selected_behaviors <- matrix(c(
   2, 156, 6,
-  2, 983, 4,
+  3, 447, 5,
+  3, 719, 6,
+  4, 130, 3,
+  5, 1008, 4,
+  6, 989, 4,
+  6, 999, 4,
   9, 1441, 6,
-  # 10, 379, 1,
-  10, 1292, 4
-  # 11, 1218, 5
+  11, 993, 4,
+  12, 147, 3,
+  12, 1149, 1,
+  12, 1412, 3
 ), ncol = 3, byrow = TRUE)
+
+
+# selected_behaviors <- matrix(c(
+# 2, 156, 6,
+# 2, 983, 4,
+# 9, 1441, 6,
+# 10, 379, 1,
+# 10, 1292, 4
+# 11, 1218, 5
+# ), ncol = 3, byrow = TRUE)
 
 n <- nrow(selected_behaviors)
 nxlabel <- 6
 useId <- TRUE
 # Ped
-x0 <- NULL 
+x0 <- NULL
 # Veh
 x1 <- NULL
 
@@ -154,12 +179,12 @@ for (l in 1:n) {
   ncrit <- length(crit_pts)
 
   # PET
-  cols <- c("speed_change", "tta", "d2e", "Time") 
+  cols <- c("speed_change", "tta", "d2e", "Time")
   zerotime <- dped[xy[2], ..cols]$Time
   endtime <- dveh[xy[1], ..cols]$Time
   PET_tmp <- as.numeric(endtime - zerotime)
   PET <- c(PET, PET_tmp)
-  
+
   # 1. Has the pedestrian slowed down?
   # The percentage of deceleration in the critical points.
   dped$xx <- 1:nrow(dped)
@@ -169,7 +194,7 @@ for (l in 1:n) {
 
   xint <- dped1[d2e < d2e_threshold, ]$xx[1]
   xend <- dped1$xx[nrow(dped1)]
-  
+
   if (nrow(dped1) >= nxlabel) {
     idx0 <- seq(1, nrow(dped1), length.out = nxlabel)
   } else {
@@ -202,7 +227,7 @@ for (l in 1:n) {
 
   dveh1$id <- paste0(i, "-", j, "-", k)
   x1 <- rbind(x1, dveh1)
-  
+
   yup <- range(dped1$Speed_ms, dped1$acc)[1]
   ydown <- range(dped1$Speed_ms, dped1$acc)[2]
   dzone <- data.frame(x = c(xint, xint, xend, xend), y = c(yup, ydown, ydown, yup))
@@ -214,9 +239,10 @@ for (l in 1:n) {
 
 
 psych::describe(PET)
-# [1] 2.64 2.96 4.56 2.48
-#  n mean   sd median trimmed  mad  min  max range skew kurtosis   se
-#  4 3.16 0.95    2.8    3.16 0.36 2.48 4.56  2.08 0.66    -1.76 0.48
+# vars  n mean   sd median trimmed  mad  min  max range  skew
+# X1    1 12 3.78 0.85   3.84    3.82 1.07 2.48 4.72  2.24 -0.27
+# kurtosis   se
+# X1    -1.67 0.24
 
 # Plot them
 lab_size <- 12
@@ -272,44 +298,21 @@ for (i in 1:n) {
       axis.title.y.left = element_text(colour = pal[3])
     )
 }
-
-# cairo_pdf("tests/docs/first_submit/figs/hesitation_tmp2.pdf")
+length(p)
+cairo_pdf("tests/docs/first_submit/figs/hesitation_tmp3.pdf")
 # png("tests/docs/first_submit/figs/hesitation.png")
-# gridExtra::grid.arrange(p[[1]], p[[2]], p[[3]], p[[4]], ncol = 2)
-# dev.off()
+gridExtra::grid.arrange(p[[1]], p[[2]], p[[3]], p[[4]],
+                        p[[5]], p[[6]], p[[7]], p[[8]],
+                        p[[9]], p[[10]], p[[11]], p[[12]],
+                        ncol = 3)
+dev.off()
 
-
-# Section 3 ---------
-# Extract initial speeds
-dout <- NULL
-
-for (l in 1:n) {
-  tmp <- selected_behaviors[l, ]
-  i <- tmp[1]
-  j <- tmp[2]
-  k <- tmp[3]
-  fndat <- paste0("tests/interact_data/day", i, "/p", j, "-v", k, ".rda")
-  Id <- paste0("d", l, "-p", j, "-v", k)
-  load(fndat)
-  distance_ped <- dped[1, "d2e"]$d2e
-  speed_veh <- dveh[1, "Speed_ms"]$Speed_ms
-  distance_veh <- dveh[1, "d2e"]$d2e
-
-  speed_ped <- dped[1, "Speed_ms"]$Speed_ms
-  dtmp <- data.frame(distance_ped, distance_veh, speed_ped, speed_veh, id = Id)
-  dout <- rbind(dout, dtmp)
-}
-
-
-write.csv(dout,
-  file = paste0("tests/extdata/6_hesitation.csv"),
-  row.names = FALSE
-)
 
 
 
 # Section 4 ------------------
 # Empirical data to compare with the simulation data.
+ids <- unique(x0$id)
 d2e_threshold_veh <- 10
 dspeed_ped <- NULL
 dacc_ped <- NULL
@@ -331,7 +334,7 @@ for (i in 1:n) {
 
   xint_veh <- dveh_tmp[d2e < d2e_threshold_veh, ]$xx[1]
   xend_veh <- dveh_tmp$xx[nrow(dveh_tmp)]
-  
+
 
   tmp <- data.table(
     x = dtmp[xint:xend, ]$xx,
@@ -358,8 +361,8 @@ for (i in 1:n) {
     z = dveh_tmp[xint_veh:xend_veh, ]$d2e,
     ID = ids[i]
   )
-  
-  
+
+
   dspeed_ped <- rbind(dspeed_ped, tmp)
   dacc_ped <- rbind(dacc_ped, tmp2)
   dspeed_veh <- rbind(dspeed_veh, tmp_veh)
@@ -367,5 +370,38 @@ for (i in 1:n) {
 }
 # i
 
-save(dspeed_ped, dacc_ped, dspeed_veh, dacc_veh, 
-     file = "tests/pydata/old/6_empirical_hesitation_tmp.rda")
+save(dspeed_ped, dacc_ped, dspeed_veh, dacc_veh,
+  file = "tests/pydata/old/6_hestitant_crossings_correct.rda"
+)
+
+# Section 3 ---------
+# Extract initial speeds
+dout <- NULL
+
+for (l in 1:n) {
+  tmp <- selected_behaviors[l, ]
+  i <- tmp[1]
+  j <- tmp[2]
+  k <- tmp[3]
+  fndat <- paste0("tests/interact_data/day", i, "/p", j, "-v", k, ".rda")
+  Id <- paste0("d", l, "-p", j, "-v", k)
+  load(fndat)
+  first_nonzero_v <- which.max(dveh$Speed_ms != 0)
+  first_nonzero_p <- which.max(dped$Speed_ms != 0)
+
+  speed_veh <- dveh[first_nonzero_v, "Speed_ms"]$Speed_ms
+  distance_veh <- dveh[first_nonzero_v, "d2e"]$d2e
+
+  speed_ped <- dped[first_nonzero_p, "Speed_ms"]$Speed_ms
+  distance_ped <- dveh[first_nonzero_p, "d2e"]$d2e
+
+
+  dtmp <- data.frame(distance_ped, distance_veh, speed_ped, speed_veh, id = Id)
+  dout <- rbind(dout, dtmp)
+}
+
+
+write.csv(dout,
+  file = paste0("tests/extdata/6_hesitant_crossings.csv"),
+  row.names = FALSE
+)
